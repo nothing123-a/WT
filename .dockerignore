@@ -1,0 +1,17 @@
+node_modules
+.next
+.git
+.gitignore
+.env
+.env.local
+.env*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+README.md
+hey--genie_en_mac_v3_0_0
+porcupine
+python-backend
+prescription-reader
+risk-analyzer
+scans-analyzer

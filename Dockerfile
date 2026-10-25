@@ -42,7 +42,7 @@ EXPOSE 3000
 
 # Health check to ensure the custom server is up
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-  CMD curl -f http://localhost:3000/api/health || exit 1
+  CMD curl -f http://localhost:${PORT:-3000}/api/health || exit 1
 
 # Start the custom server with Socket.io enabled
 CMD ["node", "server.js"]

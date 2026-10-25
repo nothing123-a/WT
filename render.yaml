@@ -3,6 +3,7 @@ services:
     name: telemedicine-app
     env: docker
     dockerfilePath: ./Dockerfile
+    plan: free
     envVars:
       - key: NODE_ENV
         value: production

@@ -1,17 +1,67 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { MessageSquare, Video, FileText, Clock, User, CheckCircle } from "lucide-react";
+import { io as socketIO } from "socket.io-client";
 
 export default function RoutineDoctorPanel({ doctorId, doctorName, inline = false }) {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const socketRef = useRef(null);
 
   useEffect(() => {
+    // Initial fetch
     fetchRequests();
-    const interval = setInterval(fetchRequests, 5000);
-    return () => clearInterval(interval);
-  }, []);
+
+    // Connect to Socket.IO for real-time updates
+    try {
+      const socket = socketIO(window.location.origin, {
+        transports: ['websocket', 'polling'],
+        timeout: 5000,
+      });
+
+      socketRef.current = socket;
+
+      socket.on("connect", () => {
+        console.log("🩺 Doctor panel connected to socket:", socket.id);
+        if (doctorId) {
+          socket.emit("register-doctor", { doctorId });
+        }
+      });
+
+      // Listen for new requests from patients
+      socket.on("new-routine-request", (newRequest) => {
+        console.log("📥 New routine request received via socket:", newRequest);
+        setRequests(prev => {
+          // Avoid duplicates
+          if (prev.find(r => r._id === newRequest._id)) return prev;
+          return [...prev, newRequest];
+        });
+      });
+
+      // Listen for requests being removed (accepted by another doctor)
+      socket.on("routine-request-removed", ({ requestId }) => {
+        console.log("🗑️ Routine request removed:", requestId);
+        setRequests(prev => prev.filter(r => r._id !== requestId));
+      });
+
+      socket.on("connect_error", (err) => {
+        console.log("Doctor panel socket error, using polling:", err.message);
+      });
+    } catch (err) {
+      console.log("Socket.IO init failed for doctor panel:", err);
+    }
+
+    // Fallback polling (less frequent since we have sockets)
+    const interval = setInterval(fetchRequests, 10000);
+
+    return () => {
+      clearInterval(interval);
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+    };
+  }, [doctorId]);
 
   const fetchRequests = async () => {
     try {
@@ -43,6 +93,8 @@ export default function RoutineDoctorPanel({ doctorId, doctorName, inline = fals
 
       if (response.ok) {
         const data = await response.json();
+        // Remove from local state immediately
+        setRequests(prev => prev.filter(r => r._id !== requestId));
         // Redirect based on connection type
         const roomType = data.connectionType === 'chat' ? 'chat' : 'video';
         window.location.href = `/${roomType}-room/${data.roomId}`;
@@ -61,6 +113,7 @@ export default function RoutineDoctorPanel({ doctorId, doctorName, inline = fals
       });
 
       if (response.ok) {
+        setRequests(prev => prev.filter(r => r._id !== requestId));
         fetchRequests();
       }
     } catch (error) {

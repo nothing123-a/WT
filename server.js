@@ -43,6 +43,11 @@ app.prepare().then(() => {
       socket.join(`user_${userId}`);
     });
 
+    socket.on("register-patient", ({ userId }) => {
+      socket.join(`patient_${userId}`);
+      console.log(`Patient ${userId} registered for notifications`);
+    });
+
     socket.on("join-room", (roomId) => {
       socket.join(roomId);
       console.log(`User joined room: ${roomId}`);

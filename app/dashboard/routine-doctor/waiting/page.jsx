@@ -1,35 +1,71 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Clock, Users, CheckCircle, ArrowLeft } from "lucide-react";
+import { io as socketIO } from "socket.io-client";
 
 export default function WaitingPage() {
   const { data: session } = useSession();
   const router = useRouter();
   const [waitTime, setWaitTime] = useState(0);
   const [status, setStatus] = useState("waiting");
+  const socketRef = useRef(null);
 
   useEffect(() => {
     const timer = setInterval(() => {
       setWaitTime(prev => prev + 1);
     }, 1000);
 
-    const checkStatus = setInterval(async () => {
-      if (!session?.user?.id) return;
-      
+    const patientId = session?.user?.id || (session?.user ? "demo-patient-123" : null);
+
+    // Connect to Socket.IO for real-time notifications
+    if (patientId) {
       try {
-        console.log("Checking status for user:", session.user.id);
-        const response = await fetch(`/api/routine-doctor/status?userId=${session.user.id}`);
-        const data = await response.json();
-        console.log("Status response:", data);
-        
-        if (data.status === "accepted" && data.roomId) {
-          console.log("Request accepted, redirecting to:", `/${data.connectionType}-room/${data.roomId}`);
+        const socket = socketIO(window.location.origin, {
+          transports: ['websocket', 'polling'],
+          timeout: 5000,
+        });
+
+        socketRef.current = socket;
+
+        socket.on("connect", () => {
+          console.log("🔌 Patient waiting page connected to socket:", socket.id);
+          // Register this patient for targeted notifications
+          socket.emit("register-patient", { userId: patientId });
+        });
+
+        // Listen for real-time acceptance
+        socket.on("routine-request-accepted", (data) => {
+          console.log("✅ Request accepted via socket:", data);
           setStatus("accepted");
           setTimeout(() => {
-            // Redirect based on connection type
+            const roomType = data.connectionType === 'chat' ? 'chat' : 'video';
+            router.push(`/${roomType}-room/${data.roomId}`);
+          }, 2000);
+        });
+
+        socket.on("connect_error", (err) => {
+          console.log("Socket connection error, falling back to polling:", err.message);
+        });
+      } catch (err) {
+        console.log("Socket.IO init failed, using polling fallback:", err);
+      }
+    }
+
+    // Fallback: HTTP polling (still works even if socket fails)
+    const checkStatus = setInterval(async () => {
+      if (!patientId || status === "accepted") return;
+      
+      try {
+        const response = await fetch(`/api/routine-doctor/status?userId=${patientId}`);
+        const data = await response.json();
+        
+        if (data.status === "accepted" && data.roomId) {
+          console.log("Request accepted via polling, redirecting to:", `/${data.connectionType}-room/${data.roomId}`);
+          setStatus("accepted");
+          setTimeout(() => {
             const roomType = data.connectionType === 'chat' ? 'chat' : 'video';
             router.push(`/${roomType}-room/${data.roomId}`);
           }, 2000);
@@ -42,8 +78,11 @@ export default function WaitingPage() {
     return () => {
       clearInterval(timer);
       clearInterval(checkStatus);
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
     };
-  }, [session?.user?.id, router]);
+  }, [session?.user?.id, router, status]);
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);

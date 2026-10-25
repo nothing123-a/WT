@@ -52,6 +52,22 @@ export async function POST(request) {
     
     await routineRequest.save();
 
+    // Notify the patient in real-time via Socket.IO
+    if (global._io) {
+      const patientRoom = `patient_${routineRequest.userId}`;
+      global._io.to(patientRoom).emit("routine-request-accepted", {
+        requestId,
+        roomId,
+        connectionType: routineRequest.connectionType,
+        doctorName: doctorName,
+        acceptedAt: routineRequest.acceptedAt
+      });
+      console.log(`📡 Emitted routine-request-accepted to patient ${routineRequest.userId}`);
+
+      // Also notify all doctors to remove the request from their panels
+      global._io.emit("routine-request-removed", { requestId });
+    }
+
     return NextResponse.json({
       success: true,
       roomId,

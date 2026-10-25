@@ -28,6 +28,22 @@ export async function POST(request) {
 
     await routineRequest.save();
 
+    // Notify all connected doctors in real-time via Socket.IO
+    if (global._io) {
+      global._io.emit("new-routine-request", {
+        _id: routineRequest._id,
+        userId,
+        userName,
+        userEmail,
+        connectionType,
+        note: note || "",
+        status: "pending",
+        timestamp: routineRequest.timestamp,
+        createdAt: routineRequest.createdAt
+      });
+      console.log("📡 Emitted new-routine-request to all doctors");
+    }
+
     return NextResponse.json({
       success: true,
       requestId: routineRequest._id,

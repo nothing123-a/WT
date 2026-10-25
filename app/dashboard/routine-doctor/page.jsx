@@ -37,13 +37,17 @@ export default function RoutineDoctorPage() {
     setIsSubmitting(true);
     
     try {
+      const patientId = session?.user?.id || session?.user?.email || "demo-patient-123";
+      const patientName = session?.user?.name || "Demo Patient";
+      const patientEmail = session?.user?.email || "patient@demo.com";
+
       const response = await fetch("/api/routine-doctor/request", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: session?.user?.id,
-          userName: session?.user?.name,
-          userEmail: session?.user?.email,
+          userId: patientId,
+          userName: patientName,
+          userEmail: patientEmail,
           connectionType: selectedOption,
           note: note.trim(),
           timestamp: new Date().toISOString()
@@ -53,11 +57,12 @@ export default function RoutineDoctorPage() {
       if (response.ok) {
         router.push("/dashboard/routine-doctor/waiting");
       } else {
-        throw new Error("Failed to submit request");
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to submit request");
       }
     } catch (error) {
       console.error("Error submitting request:", error);
-      alert("Failed to submit request. Please try again.");
+      alert(error.message || "Failed to submit request. Please try again.");
     } finally {
       setIsSubmitting(false);
     }

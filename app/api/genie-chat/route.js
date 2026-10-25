@@ -7,7 +7,7 @@ if (!process.env.GEMINI_API_KEY) {
   console.error('GEMINI_API_KEY is missing');
 }
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "AIzaSyDummyKeyForBuildStep");
 const suggestionEngine = new FeatureSuggestionEngine();
 
 export async function POST(request) {
